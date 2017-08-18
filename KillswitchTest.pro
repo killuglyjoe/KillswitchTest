@@ -46,6 +46,12 @@ win32 {
 #    QMAKE_LFLAGS_WINDOWS += /MANIFESTUAC:level=\'requireAdministrator\'
 }
 
+win:LIBS +=
+
+LIBDIR = $$PWD/libs
+
+include($$LIBDIR/wmiutils/wmiutils.pri)
+
 SOURCES += \
         main.cpp \
         mainwindow.cpp

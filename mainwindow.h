@@ -3,6 +3,8 @@
 
 #include <QMainWindow>
 
+#include "libs/wmiutils/wmihelper.h"
+
 namespace Ui {
 class MainWindow;
 }
@@ -15,8 +17,12 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
+private slots:
+    void on_checkBox_clicked(bool checked);
+
 private:
-    Ui::MainWindow *ui;
+    Ui::MainWindow              *ui;
+    WMIHelper                   m_wmiHelper;
 };
 
 #endif // MAINWINDOW_H
