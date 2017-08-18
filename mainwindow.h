@@ -22,7 +22,7 @@ private slots:
 
 private:
     Ui::MainWindow              *ui;
-    WMIHelper                   m_wmiHelper;
+    QSharedPointer<WMIHelper>   m_wmiHelper;
 };
 
 #endif // MAINWINDOW_H

@@ -15,8 +15,13 @@ class WMIHelper : public QObject
 {
     Q_OBJECT
 public:
-    explicit WMIHelper(QObject *parent = 0);
+    explicit WMIHelper(QObject *parent = 0,
+                       const QString &className = "Win32_Process",
+                       const QString &methodName = "Create");
     ~WMIHelper();
+
+    void createInstance(const QString &className = "Win32_Process",
+                        const QString &methodName = "Create");
 
     void excecCommandWithParams(const QString &command,
                                 const QString &params);
@@ -33,7 +38,7 @@ protected:
     void free();
 
 private:
-    //WMI
+    //WMI ptrs (TODO: use smart ptrs, maybe)
     IWbemLocator        *m_pLoc; //initial locator to WMI
     IWbemServices       *m_pSvc;
     IWbemClassObject    *m_pClass;
@@ -41,6 +46,11 @@ private:
     IWbemClassObject    *m_pClassInstance;
 
     bool                m_hasErrror;
+
+    // set up to call the Win32_Process::Create method
+    BSTR                m_MethodName;
+    BSTR                m_ClassName;
+
     QString             m_errorString;
 };
 

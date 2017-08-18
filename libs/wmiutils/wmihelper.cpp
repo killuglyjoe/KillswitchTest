@@ -1,10 +1,13 @@
 #include "wmihelper.h"
 
-// set up to call the Win32_Process::Create method
-static const BSTR MethodName = SysAllocString(L"Create");
-static const BSTR ClassName = SysAllocString(L"Win32_Process");
+wchar_t*  converToWChar_t(QString text)
+{
+    return (wchar_t*)(text.utf16());
+}
 
-WMIHelper::WMIHelper(QObject *parent) :
+WMIHelper::WMIHelper(QObject *parent,
+                     const QString &className,
+                     const QString &methodName) :
     QObject(parent),
     m_pLoc(0),
     m_pSvc(0),
@@ -12,9 +15,14 @@ WMIHelper::WMIHelper(QObject *parent) :
     m_pInParamsDefinition(0),
     m_pClassInstance(0),
     m_hasErrror(false),
+    m_MethodName(0),
+    m_ClassName(0),
     m_errorString("")
 {
     HRESULT hres;
+
+    // WMI init routines taken from
+    // https://msdn.microsoft.com/en-us/library/aa390421(v=vs.85).aspx
 
     // Step 1: --------------------------------------------------
     // Initialize COM. ------------------------------------------
@@ -50,7 +58,7 @@ WMIHelper::WMIHelper(QObject *parent) :
     {
         cout << "Failed to initialize security. Error code = 0x"
              << hex << hres << endl;
-        CoUninitialize();
+        free();
         m_hasErrror = true;
         m_errorString = QString().sprintf("Failed to initialize security. "
                                 "Error code = 0x%x", hres);
@@ -71,7 +79,7 @@ WMIHelper::WMIHelper(QObject *parent) :
         cout << "Failed to create IWbemLocator object. "
              << "Err code = 0x"
              << hex << hres << endl;
-        CoUninitialize();
+        free();
         m_hasErrror = true;
         m_errorString = QString().sprintf("Failed to create IWbemLocator object. "
                                 "Error code = 0x%x", hres);
@@ -99,8 +107,7 @@ WMIHelper::WMIHelper(QObject *parent) :
     {
         cout << "Could not connect. Error code = 0x"
              << hex << hres << endl;
-        m_pLoc->Release();
-        CoUninitialize();
+        free();
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not connect. "
                                 "Error code = 0x%x", hres);
@@ -127,30 +134,89 @@ WMIHelper::WMIHelper(QObject *parent) :
     {
         cout << "Could not set proxy blanket. Error code = 0x"
              << hex << hres << endl;
-        m_pSvc->Release();
-        m_pLoc->Release();
-        CoUninitialize();
+        free();
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not set proxy blanket. "
                                 "Error code = 0x%x", hres);
         return;
     }
 
-    // Step 6: --------------------------------------------------
-    // Use the IWbemServices pointer to make requests of WMI ----
-
-    hres = m_pSvc->GetObject(ClassName, 0, NULL, &m_pClass, NULL);
-
-    hres = m_pClass->GetMethod(MethodName, 0,
-        &m_pInParamsDefinition, NULL);
-
-    hres = m_pInParamsDefinition->SpawnInstance(0, &m_pClassInstance);
+    createInstance(className, methodName);
 }
 
 WMIHelper::~WMIHelper()
 {
     qDebug() << Q_FUNC_INFO ;
     free();
+}
+/**
+ * @brief Provides routines to
+ * any methods of any WMI class
+ * @param className
+ * @param methodName
+ */
+void WMIHelper::createInstance(const QString &className, const QString &methodName)
+{
+    if(m_ClassName)             SysFreeString(m_ClassName);
+    if(m_MethodName)            SysFreeString(m_MethodName);
+
+    if(m_pClassInstance)
+    {
+        m_pClassInstance->Release();
+        m_pClassInstance = 0;
+    }
+    if(m_pInParamsDefinition)
+    {
+        m_pInParamsDefinition->Release();
+        m_pInParamsDefinition = 0;
+    }
+
+    m_MethodName = SysAllocString(converToWChar_t(methodName));
+    m_ClassName = SysAllocString(converToWChar_t(className));
+
+    HRESULT hres;
+
+    // Step 6: --------------------------------------------------
+    // Use the IWbemServices pointer to make requests of WMI ----
+
+    hres = m_pSvc->GetObject(m_ClassName, 0, NULL, &m_pClass, NULL);
+    if (FAILED(hres))
+    {
+        cout << "Failed to get class object. Error code = 0x"
+             << hex << hres << endl;
+//        free();
+        m_hasErrror = true;
+        m_errorString = QString().sprintf("Failed to get class object. "
+                                "Error code = 0x%x", hres);
+        return;
+    }
+
+    hres = m_pClass->GetMethod(m_MethodName, 0, &m_pInParamsDefinition, NULL);
+
+    if(m_pInParamsDefinition == 0)
+    {
+        cout << "No any parameters need for method."<< endl;
+//        m_pInParamsDefinition->Release();
+        m_hasErrror = true;
+        m_errorString = QString("No any parameters need for method.");
+        return;
+    }
+
+    if (FAILED(hres))
+    {
+        cout << "No such method for this class. Error code = 0x"
+             << hex << hres << endl;
+//        free();
+        m_hasErrror = true;
+        m_errorString = QString().sprintf("No such method or this class. "
+                                "Error code = 0x%x", hres);
+        return;
+    }
+
+    hres = m_pInParamsDefinition->SpawnInstance(0, &m_pClassInstance);
+
+    cout << "Succesfully created connection to "
+         << className.toStdString() <<" with method "<< methodName.toStdString() << endl;
 }
 /**
  * @brief Execute any
@@ -164,7 +230,7 @@ void WMIHelper::excecCommandWithParams(const QString &command,
     // Create the values for the in parameters
     VARIANT varCommand;
     varCommand.vt = VT_BSTR;
-    varCommand.bstrVal = _bstr_t(command.toStdWString().c_str());
+    varCommand.bstrVal = _bstr_t(converToWChar_t(command));
 
     // Store the value for the in parameters
     hres = m_pClassInstance->Put(L"CommandLine", 0,
@@ -173,7 +239,7 @@ void WMIHelper::excecCommandWithParams(const QString &command,
 
     // Execute Method
     IWbemClassObject* pOutParams = NULL;
-    hres = m_pSvc->ExecMethod(ClassName, MethodName, 0,
+    hres = m_pSvc->ExecMethod(m_ClassName, m_MethodName, 0,
     NULL, m_pClassInstance, &pOutParams, NULL);
 
     if (FAILED(hres))
@@ -181,8 +247,6 @@ void WMIHelper::excecCommandWithParams(const QString &command,
         cout << "Could not execute method. Error code = 0x"
              << hex << hres << endl;
         VariantClear(&varCommand);
-        SysFreeString(ClassName);
-        SysFreeString(MethodName);
         pOutParams->Release();
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not execute method. "
@@ -197,13 +261,10 @@ void WMIHelper::excecCommandWithParams(const QString &command,
     hres = pOutParams->Get(_bstr_t(L"ReturnValue"), 0,
         &varReturnValue, NULL, 0);
 
-
     // Clean up
     //--------------------------
     VariantClear(&varCommand);
     VariantClear(&varReturnValue);
-    SysFreeString(ClassName);
-    SysFreeString(MethodName);
     pOutParams->Release();
 }
 
@@ -219,6 +280,9 @@ QString WMIHelper::errorString() const
 
 void WMIHelper::free()
 {
+    if(m_ClassName)             SysFreeString(m_ClassName);
+    if(m_MethodName)            SysFreeString(m_MethodName);
+
     if(m_pClassInstance)        m_pClassInstance->Release();
     if(m_pInParamsDefinition)   m_pInParamsDefinition->Release();
     if(m_pClass)                m_pClass->Release();
