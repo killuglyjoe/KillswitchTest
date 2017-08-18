@@ -46,6 +46,12 @@ win32 {
 #    QMAKE_LFLAGS_WINDOWS += /MANIFESTUAC:level=\'requireAdministrator\'
 }
 
+# prevents 'default argument': cannot convert from 'const wchar_t [1]' to 'BSTR'
+win32: QMAKE_CXXFLAGS_RELEASE -= -Zc:strictStrings
+win32: QMAKE_CFLAGS_RELEASE -= -Zc:strictStrings
+win32: QMAKE_CFLAGS -= -Zc:strictStrings
+win32: QMAKE_CXXFLAGS -= -Zc:strictStrings
+
 win:LIBS +=
 
 LIBDIR = $$PWD/libs

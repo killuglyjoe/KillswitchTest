@@ -9,7 +9,7 @@ MainWindow::MainWindow(QWidget *parent) :
     Q_ASSERT(m_wmiHelper->hasErrror() == false);
     ui->setupUi(this);
 
-    m_wmiHelper->createInstance("Win32_NetworkAdapter", "Disable");
+    m_wmiHelper->createInstance("Win32_networkAdapter", "Disable");
 }
 
 MainWindow::~MainWindow()

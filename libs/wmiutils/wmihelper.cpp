@@ -1,8 +1,8 @@
 #include "wmihelper.h"
 
-wchar_t*  converToWChar_t(QString text)
+const wchar_t*  converToWChar_t(const QString &text)
 {
-    return (wchar_t*)(text.utf16());
+    return text.toStdWString().c_str();
 }
 
 WMIHelper::WMIHelper(QObject *parent,
@@ -22,7 +22,7 @@ WMIHelper::WMIHelper(QObject *parent,
     HRESULT hres;
 
     // WMI init routines taken from
-    // https://msdn.microsoft.com/en-us/library/aa390421(v=vs.85).aspx
+    // href https://msdn.microsoft.com/en-us/library/aa390421(v=vs.85).aspx
 
     // Step 1: --------------------------------------------------
     // Initialize COM. ------------------------------------------
@@ -232,13 +232,16 @@ void WMIHelper::excecCommandWithParams(const QString &command,
     varCommand.vt = VT_BSTR;
     varCommand.bstrVal = _bstr_t(converToWChar_t(command));
 
-    // Store the value for the in parameters
-    hres = m_pClassInstance->Put(L"CommandLine", 0,
-        &varCommand, 0);
-    wprintf(L"The command is: %s\n", V_BSTR(&varCommand));
+    if(m_pClassInstance)
+    {
+        // Store the value for the in parameters
+        hres = m_pClassInstance->Put(L"CommandLine", 0,
+                                     &varCommand, 0);
+        wprintf(L"The command is: %s\n", V_BSTR(&varCommand));
+    }
 
     // Execute Method
-    IWbemClassObject* pOutParams = NULL;
+    IWbemClassObject* pOutParams(0);
     hres = m_pSvc->ExecMethod(m_ClassName, m_MethodName, 0,
     NULL, m_pClassInstance, &pOutParams, NULL);
 
@@ -247,7 +250,6 @@ void WMIHelper::excecCommandWithParams(const QString &command,
         cout << "Could not execute method. Error code = 0x"
              << hex << hres << endl;
         VariantClear(&varCommand);
-        pOutParams->Release();
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not execute method. "
                                 "Error code = 0x%x", hres);
