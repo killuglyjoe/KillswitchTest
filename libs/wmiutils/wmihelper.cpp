@@ -309,7 +309,7 @@ void WMIHelper::execQuery(const QString &query)
 void WMIHelper::execQuery(const QString &query, const QString &fieldName)
 {
     HRESULT hres;
-    qDebug() << Q_FUNC_INFO << query;
+//    qDebug() << Q_FUNC_INFO << query;
     // Execute Query
     CComPtr<IEnumWbemClassObject> enumerator;
     hres = m_pSvc->ExecQuery( L"WQL", convertToBSTR(query),
@@ -329,10 +329,12 @@ void WMIHelper::execQuery(const QString &query, const QString &fieldName)
     ULONG wmiObjCount(0);
 
     CComVariant varPar;
-    while((enumerator->Next(WBEM_INFINITE, 1, &wmiObj, &wmiObjCount)) >= 0)
+    while(enumerator)
     {
-        hres = enumerator->Next(WBEM_INFINITE, 1, &wmiObj, &wmiObjCount);
-        cout <<wmiObjCount<<endl;
+        hres = enumerator->Next(WBEM_NO_WAIT, 1, &wmiObj, &wmiObjCount);
+        if(wmiObjCount == 0)
+            break;
+
         wmiObj->Get(convertToBSTR(fieldName), 0, &varPar, 0, 0);
         string par = CW2A(varPar.bstrVal);
         cout <<par<<endl;

@@ -23,6 +23,6 @@ void MainWindow::on_checkBox_clicked(bool checked)
 {
     Q_UNUSED(checked);
     m_wmiHelper->execQuery("SELECT * FROM Win32_NetworkAdapter WHERE "
-                           "NetConnectionStatus=\'7\'",
+                           "NetConnectionStatus=\'2\'",
                            "ProductName");
 }
