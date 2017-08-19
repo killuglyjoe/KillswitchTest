@@ -1,7 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-const QString cMaskIP("192.168.2");
+const QString cMaskIP("192.168.2");//check subnet for adapter (looks ugly, better QHostAddress::isSubnet)
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -17,6 +17,7 @@ MainWindow::MainWindow(QWidget *parent) :
                            "IPEnabled=\"true\"","IPADDress", &adaptersList);
 //    qDebug() << adaptersList;
 
+    // I must have wrapper class around adapters config
     foreach (QString address, adaptersList)
     {
         if(address.contains(cMaskIP))
@@ -32,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent) :
             }
         }
     }
-    qDebug() << m_adaptersIndxList;
+//    qDebug() << m_adaptersIndxList;
 }
 
 MainWindow::~MainWindow()
