@@ -15,16 +15,17 @@ class WMIHelper : public QObject
 {
     Q_OBJECT
 public:
-    explicit WMIHelper(QObject *parent = 0,
-                       const QString &className = "Win32_Process",
-                       const QString &methodName = "Create");
+    explicit WMIHelper(QObject *parent = 0);
     ~WMIHelper();
 
-    void createInstance(const QString &className = "Win32_Process",
-                        const QString &methodName = "Create");
 
-    void excecCommandWithParams(const QString &command,
+    void excecCommandWithParams(const QString &className,
+                                const QString &methodName,
+                                const QString &command,
                                 const QString &params);
+
+    void execQuery(const QString &query);
+    void execQuery(const QString &query, const QString &fieldName);
 
     bool hasErrror() const;
 
@@ -35,6 +36,8 @@ signals:
 public slots:
 
 protected:
+    void createInstance(const QString &className = "Win32_Process",
+                        const QString &methodName = "Create");
     void free();
 
 private:

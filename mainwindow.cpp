@@ -8,8 +8,6 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     Q_ASSERT(m_wmiHelper->hasErrror() == false);
     ui->setupUi(this);
-
-    m_wmiHelper->createInstance("Win32_networkAdapter", "Disable");
 }
 
 MainWindow::~MainWindow()
@@ -23,5 +21,8 @@ MainWindow::~MainWindow()
  */
 void MainWindow::on_checkBox_clicked(bool checked)
 {
-    m_wmiHelper->excecCommandWithParams("notepad.exe", checked ? "par1" : "par2");
+    Q_UNUSED(checked);
+    m_wmiHelper->execQuery("SELECT * FROM Win32_NetworkAdapter WHERE "
+                           "NetConnectionStatus=\'7\'",
+                           "ProductName");
 }

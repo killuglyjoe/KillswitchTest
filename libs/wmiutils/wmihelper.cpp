@@ -1,13 +1,14 @@
 #include "wmihelper.h"
 
-const wchar_t*  converToWChar_t(const QString &text)
+#include "atlbase.h"
+
+_bstr_t  convertToBSTR(const QString &text)
 {
-    return text.toStdWString().c_str();
+    _bstr_t bs(text.toStdWString().c_str());
+    return bs;
 }
 
-WMIHelper::WMIHelper(QObject *parent,
-                     const QString &className,
-                     const QString &methodName) :
+WMIHelper::WMIHelper(QObject *parent) :
     QObject(parent),
     m_pLoc(0),
     m_pSvc(0),
@@ -140,8 +141,7 @@ WMIHelper::WMIHelper(QObject *parent,
                                 "Error code = 0x%x", hres);
         return;
     }
-
-    createInstance(className, methodName);
+//    createInstance();
 }
 
 WMIHelper::~WMIHelper()
@@ -171,8 +171,8 @@ void WMIHelper::createInstance(const QString &className, const QString &methodNa
         m_pInParamsDefinition = 0;
     }
 
-    m_MethodName = SysAllocString(converToWChar_t(methodName));
-    m_ClassName = SysAllocString(converToWChar_t(className));
+    m_ClassName = SysAllocString(convertToBSTR(className));
+    m_MethodName = SysAllocString(convertToBSTR(methodName));
 
     HRESULT hres;
 
@@ -215,7 +215,7 @@ void WMIHelper::createInstance(const QString &className, const QString &methodNa
 
     hres = m_pInParamsDefinition->SpawnInstance(0, &m_pClassInstance);
 
-    cout << "Succesfully created connection to "
+    cout << "Succesfully created acceess to class "
          << className.toStdString() <<" with method "<< methodName.toStdString() << endl;
 }
 /**
@@ -223,14 +223,18 @@ void WMIHelper::createInstance(const QString &className, const QString &methodNa
  * @param command
  * @param params
  */
-void WMIHelper::excecCommandWithParams(const QString &command,
+void WMIHelper::excecCommandWithParams(const QString &className,
+                                       const QString &methodName,
+                                       const QString &command,
                                        const QString &params)
-{
+{    
+    createInstance(className, methodName);
+
     HRESULT hres;
     // Create the values for the in parameters
     VARIANT varCommand;
     varCommand.vt = VT_BSTR;
-    varCommand.bstrVal = _bstr_t(converToWChar_t(command));
+    varCommand.bstrVal = convertToBSTR(command);
 
     if(m_pClassInstance)
     {
@@ -243,7 +247,7 @@ void WMIHelper::excecCommandWithParams(const QString &command,
     // Execute Method
     IWbemClassObject* pOutParams(0);
     hres = m_pSvc->ExecMethod(m_ClassName, m_MethodName, 0,
-    NULL, m_pClassInstance, &pOutParams, NULL);
+                                NULL, m_pClassInstance, &pOutParams, NULL);
 
     if (FAILED(hres))
     {
@@ -268,6 +272,72 @@ void WMIHelper::excecCommandWithParams(const QString &command,
     VariantClear(&varCommand);
     VariantClear(&varReturnValue);
     pOutParams->Release();
+}
+/**
+ * @brief WMIHelper::execQuery
+ * @param command
+ */
+void WMIHelper::execQuery(const QString &query)
+{
+    HRESULT hres;
+    // Execute Query
+    CComPtr<IEnumWbemClassObject> enumerator;
+    hres = m_pSvc->ExecQuery( L"WQL", convertToBSTR(query),
+                             WBEM_FLAG_FORWARD_ONLY, NULL, &enumerator );
+
+    if (FAILED(hres))
+    {
+        cout << "Could not execute query. Error code = 0x"
+             << hex << hres << endl;
+        m_hasErrror = true;
+        m_errorString = QString().sprintf("Could not execute query. "
+                                "Error code = 0x%x", hres);
+        return;
+    }
+
+    CComPtr<IWbemClassObject> wmiObj;
+    ULONG wmiObjCount(0);
+
+//    CComVariant varPar;
+//    while((hres = enumerator->Next(WBEM_INFINITE, 1, &wmiObj, &wmiObjCount)) == WBEM_S_TIMEDOUT)
+//    {
+//        wmiObj->Get();
+//        cout <<endl;
+//    }
+}
+
+void WMIHelper::execQuery(const QString &query, const QString &fieldName)
+{
+    HRESULT hres;
+    qDebug() << Q_FUNC_INFO << query;
+    // Execute Query
+    CComPtr<IEnumWbemClassObject> enumerator;
+    hres = m_pSvc->ExecQuery( L"WQL", convertToBSTR(query),
+                             WBEM_FLAG_FORWARD_ONLY, NULL, &enumerator );
+
+    if (FAILED(hres))
+    {
+        cout << "Could not execute query. Error code = 0x"
+             << hex << hres << endl;
+        m_hasErrror = true;
+        m_errorString = QString().sprintf("Could not execute query. "
+                                "Error code = 0x%x", hres);
+        return;
+    }
+
+    CComPtr<IWbemClassObject> wmiObj;
+    ULONG wmiObjCount(0);
+
+    CComVariant varPar;
+    while((enumerator->Next(WBEM_INFINITE, 1, &wmiObj, &wmiObjCount)) >= 0)
+    {
+        hres = enumerator->Next(WBEM_INFINITE, 1, &wmiObj, &wmiObjCount);
+        cout <<wmiObjCount<<endl;
+        wmiObj->Get(convertToBSTR(fieldName), 0, &varPar, 0, 0);
+        string par = CW2A(varPar.bstrVal);
+        cout <<par<<endl;
+    }
+    cout <<wmiObjCount<<endl;
 }
 
 bool WMIHelper::hasErrror() const
