@@ -15,17 +15,22 @@ class WMIHelper : public QObject
 {
     Q_OBJECT
 public:
-    explicit WMIHelper(QObject *parent = 0);
+    explicit WMIHelper(const QString &className = "", QObject *parent = 0);
     ~WMIHelper();
 
 
-    void excecCommandWithParams(const QString &className,
-                                const QString &methodName,
+    bool excecCommandWithParams(const QString &methodName,
                                 const QString &command,
                                 const QString &params);
 
-    void execQuery(const QString &query);
-    void execQuery(const QString &query, const QString &fieldName);
+    bool execQuery(const QString &query, QStringList *resList);
+    bool execQuery(const QString &query, const QString &fieldName, QStringList *resList);
+    bool execQueryWithCommand(const QString &query,
+                              const QString &fieldName,
+                              const QString &command);
+
+//    void execQueryAsync(const QString &query);
+//    void execQueryAsync(const QString &query, const QString &fieldName);
 
     bool hasErrror() const;
 

@@ -1,6 +1,9 @@
 #include "wmihelper.h"
 
 #include "atlbase.h"
+#include "atlsafe.h"
+
+#include <sstream>
 
 _bstr_t  convertToBSTR(const QString &text)
 {
@@ -8,7 +11,7 @@ _bstr_t  convertToBSTR(const QString &text)
     return bs;
 }
 
-WMIHelper::WMIHelper(QObject *parent) :
+WMIHelper::WMIHelper(const QString &className, QObject *parent) :
     QObject(parent),
     m_pLoc(0),
     m_pSvc(0),
@@ -17,7 +20,7 @@ WMIHelper::WMIHelper(QObject *parent) :
     m_pClassInstance(0),
     m_hasErrror(false),
     m_MethodName(0),
-    m_ClassName(0),
+    m_ClassName(SysAllocString(convertToBSTR(className))),
     m_errorString("")
 {
     HRESULT hres;
@@ -223,12 +226,11 @@ void WMIHelper::createInstance(const QString &className, const QString &methodNa
  * @param command
  * @param params
  */
-void WMIHelper::excecCommandWithParams(const QString &className,
-                                       const QString &methodName,
+bool WMIHelper::excecCommandWithParams(const QString &methodName,
                                        const QString &command,
                                        const QString &params)
 {    
-    createInstance(className, methodName);
+//    createInstance(className, methodName);
 
     HRESULT hres;
     // Create the values for the in parameters
@@ -257,7 +259,7 @@ void WMIHelper::excecCommandWithParams(const QString &className,
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not execute method. "
                                 "Error code = 0x%x", hres);
-        return;
+        return false;
     }
 
     // To see what the method returned,
@@ -272,12 +274,14 @@ void WMIHelper::excecCommandWithParams(const QString &className,
     VariantClear(&varCommand);
     VariantClear(&varReturnValue);
     pOutParams->Release();
+
+    return true;
 }
 /**
  * @brief WMIHelper::execQuery
  * @param command
  */
-void WMIHelper::execQuery(const QString &query)
+bool WMIHelper::execQuery(const QString &query, QStringList *resList)
 {
     HRESULT hres;
     // Execute Query
@@ -292,21 +296,13 @@ void WMIHelper::execQuery(const QString &query)
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not execute query. "
                                 "Error code = 0x%x", hres);
-        return;
+        return false;
     }
 
-    CComPtr<IWbemClassObject> wmiObj;
-    ULONG wmiObjCount(0);
-
-//    CComVariant varPar;
-//    while((hres = enumerator->Next(WBEM_INFINITE, 1, &wmiObj, &wmiObjCount)) == WBEM_S_TIMEDOUT)
-//    {
-//        wmiObj->Get();
-//        cout <<endl;
-//    }
+    return true;
 }
 
-void WMIHelper::execQuery(const QString &query, const QString &fieldName)
+bool WMIHelper::execQuery(const QString &query, const QString &fieldName, QStringList *resList)
 {
     HRESULT hres;
 //    qDebug() << Q_FUNC_INFO << query;
@@ -317,12 +313,84 @@ void WMIHelper::execQuery(const QString &query, const QString &fieldName)
 
     if (FAILED(hres))
     {
+        cout << "Could not execute query "<<convertToBSTR(query)<<". Error code = 0x"
+             << hex << hres << endl;
+        m_hasErrror = true;
+        m_errorString = QString().sprintf("Could not execute query. "
+                                "Error code = 0x%x", hres);
+        return false;
+    }
+
+    CComPtr<IWbemClassObject> wmiObj;
+    ULONG wmiObjCount(0);
+
+    CComVariant varPar;
+    while(enumerator)
+    {
+        hres = enumerator->Next(WBEM_NO_WAIT, 1, &wmiObj, &wmiObjCount);
+        if(wmiObjCount == 0 || FAILED(hres))
+            return true;
+
+        string par("");
+        hres = wmiObj->Get(convertToBSTR(fieldName), 0, &varPar, 0, 0);
+
+        if(FAILED(hres))
+        {
+            cout << "Could not Get "<<convertToBSTR(fieldName)<<". Error code = 0x"
+                 << hex << hres << endl;
+            return true;
+        }
+
+        switch (varPar.vt)
+        {
+            case VT_EMPTY:
+                return true;
+
+            case VT_I4:
+                {
+                    ostringstream tmp;
+                    tmp << varPar.lVal;
+                    par = tmp.str();
+                }
+                break;
+
+            case VT_BSTR:
+                par = CW2A(varPar.bstrVal);
+                break;
+
+            case 0x2008://?? 8200
+                CComSafeArray<BSTR> sa(varPar.parray);
+                par = CW2A(sa.GetAt(0));//only ipv4
+                break;
+        }
+
+//        cout << " Get "<<par << endl;
+
+        resList->append(QString::fromStdString(par));
+    }
+    return true;
+}
+
+bool WMIHelper::execQueryWithCommand(const QString &query,
+                                     const QString &fieldName,
+                                     const QString &command)
+{
+    HRESULT hres;
+//    qDebug() << Q_FUNC_INFO << query;
+
+    // Execute Query
+    CComPtr<IEnumWbemClassObject> enumerator;
+    hres = m_pSvc->ExecQuery( L"WQL", convertToBSTR(query),
+                             WBEM_FLAG_FORWARD_ONLY, NULL, &enumerator );
+
+    if(FAILED(hres))
+    {
         cout << "Could not execute query. Error code = 0x"
              << hex << hres << endl;
         m_hasErrror = true;
         m_errorString = QString().sprintf("Could not execute query. "
                                 "Error code = 0x%x", hres);
-        return;
+        return false;
     }
 
     CComPtr<IWbemClassObject> wmiObj;
@@ -336,10 +404,18 @@ void WMIHelper::execQuery(const QString &query, const QString &fieldName)
             break;
 
         wmiObj->Get(convertToBSTR(fieldName), 0, &varPar, 0, 0);
-        string par = CW2A(varPar.bstrVal);
-        cout <<par<<endl;
+//        string par = CW2A(varPar.bstrVal);
+        BSTR classObj(CW2A(m_ClassName) + L"."+convertToBSTR(fieldName)+L"=\""+varPar.bstrVal+"\"");
+        cout <<"Exec method "<<convertToBSTR(command)<<" failed for class "<<CW2A(classObj)<<endl;
+
+        IWbemClassObject *pOut;
+        if(FAILED( m_pSvc->ExecMethod(classObj, convertToBSTR(command), 0, 0, 0, &pOut, 0)))
+            cout <<"Exec method "<<convertToBSTR(command)<<" failed for class "<<CW2A(classObj)<<endl;
+
+//        cout <<par<<endl;
     }
-    cout <<wmiObjCount<<endl;
+
+    return true;
 }
 
 bool WMIHelper::hasErrror() const

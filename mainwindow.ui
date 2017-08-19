@@ -6,12 +6,18 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>160</width>
-    <height>81</height>
+    <width>150</width>
+    <height>80</height>
    </rect>
   </property>
+  <property name="maximumSize">
+   <size>
+    <width>150</width>
+    <height>80</height>
+   </size>
+  </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Killswitch</string>
   </property>
   <widget class="QWidget" name="centralWidget">
    <widget class="QCheckBox" name="checkBox">
