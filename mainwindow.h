@@ -3,7 +3,8 @@
 
 #include <QMainWindow>
 
-#include "libs/wmiutils/wmihelper.h"
+//#include "libs/wmiutils/wmihelper.h"
+#include "qwmiwrapper.h"
 
 namespace Ui {
 class MainWindow;
@@ -22,8 +23,11 @@ private slots:
 
 private:
     Ui::MainWindow              *ui;
-    QSharedPointer<WMIHelper>   m_wmiHelper;
+//    QSharedPointer<WMIHelper>   m_wmiHelper;
+    QSharedPointer<QWMIWrapper> m_qaxWrapper;
     QStringList                 m_adaptersIndxList;
+
+    QList<QAxObject*>           m_ifaceList;
 };
 
 #endif // MAINWINDOW_H

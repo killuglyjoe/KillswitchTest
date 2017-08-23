@@ -1,36 +1,33 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
-const QString cMaskIP("192.168.2");//check subnet for adapter (looks ugly, better QHostAddress::isSubnet)
+#include <QDebug>
+#include <QHostAddress>
+
+const QString cMaskIP("192.168.2.0/24");//check subnet for adapter
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow),
-    m_wmiHelper(QSharedPointer<WMIHelper>(new WMIHelper("Win32_NetworkAdapter")))
+    m_qaxWrapper(QSharedPointer<QWMIWrapper>(new QWMIWrapper))
 {
-    Q_ASSERT(m_wmiHelper->hasErrror() == false);
+    Q_ASSERT(!m_qaxWrapper.isNull());
     ui->setupUi(this);
 
-    //
-    QStringList adaptersList;
-    m_wmiHelper->execQuery("SELECT * FROM Win32_NetworkAdapterConfiguration WHERE "
-                           "IPEnabled=\"true\"","IPADDress", &adaptersList);
-//    qDebug() << adaptersList;
+    m_ifaceList = m_qaxWrapper->getWmiInterObjs(
+                                "SELECT * FROM Win32_NetworkAdapterConfiguration"
+                                 " WHERE IPEnabled=\"true\"");
 
-    // I must have wrapper class around adapters config
-    foreach (QString address, adaptersList)
+    foreach(QAxObject *axObj, m_ifaceList)
     {
-        if(address.contains(cMaskIP))
+        QHostAddress ipv4(axObj->dynamicCall("IPAddress")
+                          .toList().at(0).toString());
+
+        if(ipv4.isInSubnet(QHostAddress::parseSubnet(cMaskIP)))
         {
-            QStringList idxList;
-            m_wmiHelper->execQuery("SELECT * FROM Win32_NetworkAdapterConfiguration WHERE "
-                                   "IPEnabled=\"true\"","index", &idxList);
-            if(idxList.isEmpty()) continue;
-//            qDebug() << idxList;
-            foreach (QString idx, idxList) {
-                if(!m_adaptersIndxList.contains(idx))
-                    m_adaptersIndxList.append(idx);
-            }
+            QString ifaceIdx(axObj->dynamicCall("Index").toString());
+            if(!m_adaptersIndxList.contains(ifaceIdx))
+                m_adaptersIndxList.append(ifaceIdx);
         }
     }
 //    qDebug() << m_adaptersIndxList;
@@ -47,9 +44,12 @@ MainWindow::~MainWindow()
  */
 void MainWindow::on_checkBox_clicked(bool checked)
 {
-    foreach (QString adapterIdx, m_adaptersIndxList) {
-        m_wmiHelper->execQueryWithCommand("SELECT * FROM Win32_NetworkAdapter WHERE "
-                               "DeviceID=\'"+adapterIdx+"\'",
-                               "DeviceID", checked ? "Disable" : "Enable");
+    foreach (QString adapterIdx, m_adaptersIndxList)
+    {
+        QList<QAxObject*> objs(m_qaxWrapper->getWmiInterObjs(
+                                "SELECT * FROM Win32_NetworkAdapter WHERE "
+                                "DeviceID=\'"+adapterIdx+"\'"));
+        if(objs.count())
+            objs.at(0)->dynamicCall(checked ? "Disable" : "Enable");
     }
 }
